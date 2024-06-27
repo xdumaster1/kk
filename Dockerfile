@@ -84,6 +84,7 @@ RUN --mount=type=bind,target=/tmp/wheels,source=/wheels,from=wheels-builder,rw \
     && pip install --no-cache-dir /tmp/wheels/*.whl
 
 # Install Music Assistant from published wheel
+ENV MASS_VERSION=2.1.0b8
 RUN pip3 install \
         --no-cache-dir \
         music-assistant[server]==${MASS_VERSION} \
