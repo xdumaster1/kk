@@ -77,14 +77,14 @@ RUN set -x \
     && pip install --no-cache-dir /tmp/wheels/*.whl
 
 # Install Music Assistant from published wheel
-ENV MASS_VERSION=2.1.1b12
+ENV MASS_VERSION=2.1.1b11
 RUN pip install \
         --no-cache-dir \
         musicxxdu[server]==${MASS_VERSION} \
     && python3 -m compileall music_assistant
 
 # Enable jemalloc
-ENV LD_PRELOAD=$(find /usr/lib/ -name *libjemalloc.so.2)
+RUN export LD_PRELOAD=$(find /usr/lib/ -name *libjemalloc.so.2) && echo "export LD_PRELOAD=$LD_PRELOAD" >> /etc/environment
 ENV MALLOC_CONF="background_thread:true,metadata_thp:auto,dirty_decay_ms:20000,muzzy_decay_ms:20000"
 
 # Set some labels
