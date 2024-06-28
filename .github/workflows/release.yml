@@ -127,6 +127,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.1.4
+      - name: Ensure directory exists
+        run: mkdir -p music_assistant_beta
+      - name: Ensure CHANGELOG.md file exists
+        run: |
+          if [ ! -f music_assistant_beta/CHANGELOG.md ]; then
+            echo "## Changelog" > music_assistant_beta/CHANGELOG.md
+          fi
       - name: Update changelog and release notes including frontend notes
         uses: xdumaster1/release-notes-merge-action@main
         with:
@@ -137,9 +144,11 @@ jobs:
   addon-version-update:
     name: Updates the Addon repository with the new version
     needs:
-      - build-and-publish-pypi
-      - build-and-push-container-image
-      - release-notes-update
+    [
+        build-and-publish-pypi,
+        build-and-push-container-image,
+        release-notes-update,
+    ]
     runs-on: ubuntu-latest
     steps:
       - name: Push new version number to addon config
