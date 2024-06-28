@@ -119,17 +119,21 @@ jobs:
           push: true
           build-args: "MASS_VERSION=${{ needs.build-and-publish-pypi.outputs.version }}"
 
-  release-notes-update:
-    name: Updates the release notes and changelog
-    needs: [build-and-publish-pypi, build-and-push-container-image]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Update changelog and release notes including frontend notes
-        uses: music-assistant/release-notes-merge-action@main
-        with:
-          github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
-          release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
-          pre_release: ${{ github.event.release.prerelease }}
+release-notes-update:
+  name: Updates the release notes and changelog
+  needs: [build-and-publish-pypi, build-and-push-container-image]
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4.1.4
+    - name: Update changelog and release notes including frontend notes
+      uses: xdumaster1/release-notes-merge-action@main
+      with:
+        github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+        release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
+        pre_release: ${{ github.event.release.prerelease }}
+      env:
+        DEBUG: true
 
   addon-version-update:
     name: Updates the Addon repository with the new version
