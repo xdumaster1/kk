@@ -21,7 +21,7 @@ jobs:
         run: >-
           if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             if ! [[ "${{ steps.vars.outputs.tag }}" =~ "b" ]]; then
-            echo "Pre-release: Tag is missing beta suffix (${{ steps.vars.outputs.tag }})"
+              echo "Pre-release: Tag is missing beta suffix (${{ steps.vars.outputs.tag }})"
               exit 1
             fi
           else
@@ -120,11 +120,13 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/server:beta
           push: true
           build-args: "MASS_VERSION=${{ needs.build-and-publish-pypi.outputs.version }}"
- release-notes-update:
+
+  release-notes-update:
     name: Updates the release notes and changelog
     needs: [build-and-publish-pypi, build-and-push-container-image]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4.1.4
       - name: Update changelog and release notes including frontend notes
         uses: xdumaster1/release-notes-merge-action@main
         with:
@@ -135,11 +137,9 @@ jobs:
   addon-version-update:
     name: Updates the Addon repository with the new version
     needs:
-      [
-        build-and-publish-pypi,
-        build-and-push-container-image,
-        release-notes-update,
-      ]
+      - build-and-publish-pypi
+      - build-and-push-container-image
+      - release-notes-update
     runs-on: ubuntu-latest
     steps:
       - name: Push new version number to addon config
