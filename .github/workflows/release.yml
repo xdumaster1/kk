@@ -18,7 +18,7 @@ jobs:
         id: vars
         run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
       - name: Validate version number
-        run: >
+        run: |
           if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             if ! [[ "${{ steps.vars.outputs.tag }}" =~ "b" ]]; then
               echo "Pre-release: Tag is missing beta suffix (${{ steps.vars.outputs.tag }})"
@@ -29,7 +29,6 @@ jobs:
               echo "Release: Tag must not have a beta suffix (${{ steps.vars.outputs.tag }})"
               exit 1
             fi
-          fi
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5.1.0
         with:
@@ -41,12 +40,9 @@ jobs:
         run: |
           import tomli
           import tomli_w
-
           with open("pyproject.toml", "rb") as f:
             pyproject = tomli.load(f)
-
           pyproject["project"]["version"] = "${{ steps.vars.outputs.tag }}"
-
           with open("pyproject.toml", "wb") as f:
             tomli_w.dump(pyproject, f)
       - name: Build python package
@@ -119,30 +115,25 @@ jobs:
           push: true
           build-args: "MASS_VERSION=${{ needs.build-and-publish-pypi.outputs.version }}"
 
-release-notes-update:
-  name: Updates the release notes and changelog
-  needs: [build-and-publish-pypi, build-and-push-container-image]
-  runs-on: ubuntu-latest
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4.1.4
-    - name: Update changelog and release notes including frontend notes
-      uses: xdumaster1/release-notes-merge-action@main
-      with:
-        github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
-        release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
-        pre_release: ${{ github.event.release.prerelease }}
-      env:
-        DEBUG: true
+  release-notes-update:
+    name: Updates the release notes and changelog
+    needs: [build-and-publish-pypi, build-and-push-container-image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.4
+      - name: Update changelog and release notes including frontend notes
+        uses: xdumaster1/release-notes-merge-action@main
+        with:
+          github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+          release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
+          pre_release: ${{ github.event.release.prerelease }}
+        env:
+          DEBUG: true
 
   addon-version-update:
     name: Updates the Addon repository with the new version
-    needs:
-      [
-        build-and-publish-pypi,
-        build-and-push-container-image,
-        release-notes-update,
-      ]
+    needs: [build-and-publish-pypi, build-and-push-container-image, release-notes-update]
     runs-on: ubuntu-latest
     steps:
       - name: Push new version number to addon config
