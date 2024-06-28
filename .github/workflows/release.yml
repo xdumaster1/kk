@@ -18,10 +18,10 @@ jobs:
         id: vars
         run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
       - name: Validate version number
-        run: |
+        run: >-
           if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             if ! [[ "${{ steps.vars.outputs.tag }}" =~ "b" ]]; then
-              echo "Pre-release: Tag is missing beta suffix (${{ steps.vars.outputs.tag }})"
+            echo "Pre-release: Tag is missing beta suffix (${{ steps.vars.outputs.tag }})"
               exit 1
             fi
           else
@@ -29,24 +29,30 @@ jobs:
               echo "Release: Tag must not have a beta suffix (${{ steps.vars.outputs.tag }})"
               exit 1
             fi
+          fi
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install build tools
-        run: pip install build tomli tomli-w
+      - name: Install build
+        run: >-
+          pip install build tomli tomli-w
       - name: Set Python project version from tag
         shell: python
-        run: |
+        run: |-
           import tomli
           import tomli_w
+
           with open("pyproject.toml", "rb") as f:
             pyproject = tomli.load(f)
+
           pyproject["project"]["version"] = "${{ steps.vars.outputs.tag }}"
+
           with open("pyproject.toml", "wb") as f:
             tomli_w.dump(pyproject, f)
       - name: Build python package
-        run: python3 -m build
+        run: >-
+          python3 -m build
       - name: Publish release to PyPI
         uses: pypa/gh-action-pypi-publish@v1.9.0
         with:
@@ -82,7 +88,7 @@ jobs:
       - name: Version number for tags
         id: tags
         shell: bash
-        run: |
+        run: |-
           patch=${GITHUB_REF#refs/*/}
           echo "patch=${patch}" >> $GITHUB_OUTPUT
           echo "minor=${patch%.*}" >> $GITHUB_OUTPUT
@@ -94,7 +100,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           file: Dockerfile
-          tags: |
+          tags: |-
             ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }},
             ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.minor }},
             ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.major }},
@@ -109,31 +115,31 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           file: Dockerfile
-          tags: |
+          tags: |-
             ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }},
             ghcr.io/${{ github.repository_owner }}/server:beta
           push: true
           build-args: "MASS_VERSION=${{ needs.build-and-publish-pypi.outputs.version }}"
-
-  release-notes-update:
+ release-notes-update:
     name: Updates the release notes and changelog
     needs: [build-and-publish-pypi, build-and-push-container-image]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.1.4
       - name: Update changelog and release notes including frontend notes
         uses: xdumaster1/release-notes-merge-action@main
         with:
           github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
           release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
           pre_release: ${{ github.event.release.prerelease }}
-        env:
-          DEBUG: true
 
   addon-version-update:
     name: Updates the Addon repository with the new version
-    needs: [build-and-publish-pypi, build-and-push-container-image, release-notes-update]
+    needs:
+      [
+        build-and-publish-pypi,
+        build-and-push-container-image,
+        release-notes-update,
+      ]
     runs-on: ubuntu-latest
     steps:
       - name: Push new version number to addon config
