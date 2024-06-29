@@ -120,3 +120,20 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/server:beta
           push: true
           build-args: "MASS_VERSION=${{ needs.build-and-publish-pypi.outputs.version }}"
+
+          addon-version-update:
+    name: Updates the Addon repository with the new version
+    needs:
+      [
+        build-and-publish-pypi,
+        build-and-push-container-image,
+        release-notes-update,
+      ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push new version number to addon config
+        uses: xdumaster1/addon-update-action@main
+        with:
+          github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+          new_server_version: ${{ needs.build-and-publish-pypi.outputs.version }}
+          pre_release: ${{ github.event.release.prerelease }}
