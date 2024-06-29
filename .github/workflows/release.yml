@@ -112,6 +112,15 @@ jobs:
       - build-and-push-container-image
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout addon repository
+        uses: actions/checkout@v3
+        with:
+          repository: xdumaster1/home-assistant-addon
+          token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+
+      - name: List files for debugging
+        run: ls -R
+
       - name: Push new version number to addon config
         uses: xdumaster1/addon-update-action@main
         with:
