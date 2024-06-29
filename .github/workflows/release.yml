@@ -111,6 +111,10 @@ jobs:
       - build-and-publish-pypi
       - build-and-push-container-image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      actions: write
     steps:
       - name: Checkout addon repository
         uses: actions/checkout@v3
