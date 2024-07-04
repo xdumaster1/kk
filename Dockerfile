@@ -77,7 +77,7 @@ RUN set -x \
     && pip install --no-cache-dir /tmp/wheels/*.whl
 
 # Install Music Assistant from published wheel
-ENV MASS_VERSION=2.1.1b42
+ENV MASS_VERSION=2.1.1b43
 RUN pip install \
         --no-cache-dir \
         musicxxdu[server]==${MASS_VERSION} \
