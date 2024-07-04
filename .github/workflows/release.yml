@@ -105,7 +105,7 @@ jobs:
           echo "::set-output name=major::${patch%.*.*}"
 
       - name: Build and Push release
-        if: github.event.release.prerelease == 'false'
+        if: github.event.release.prerelease == 'true'
         run: |
           docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.major }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.minor }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }} -t ghcr.io/${{ github.repository_owner }}/server:stable -t ghcr.io/${{ github.repository_owner }}/server:latest --push .
 
