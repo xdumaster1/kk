@@ -132,12 +132,21 @@ jobs:
           repository: xdumaster1/home-assistant-addon
           token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
 
-      - name: List files for debugging
-        run: ls -R
-
       - name: Push new version number to addon config
-        uses: xdumaster1/addon-update-action@main
-        with:
-          github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
-          new_server_version: ${{ needs.build-and-publish-pypi.outputs.version }}
-          pre_release: ${{ github.event.release.prerelease }}
+        run: |
+          addon_version="music_assistant"
+          if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
+            addon_version="music_assistant_beta"
+          fi
+
+          echo "Updating addon version to ${{ needs.build-and-publish-pypi.outputs.version }}"
+
+          # Update config.yaml or any relevant files in the addon repository
+          echo "version: ${{ needs.build-and-publish-pypi.outputs.version }}" > "${addon_version}/config.yaml"
+
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add .
+          git commit -m "Update addon version to ${{ needs.build-and-publish-pypi.outputs.version }}"
+          git push origin HEAD:${{ github.ref }}
