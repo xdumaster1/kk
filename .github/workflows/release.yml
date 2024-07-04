@@ -72,6 +72,10 @@ jobs:
     permissions:
       packages: write
     needs: build-and-publish-pypi
+    outputs:
+      patch: ${{ steps.tags.outputs.patch }}
+      minor: ${{ steps.tags.outputs.minor }}
+      major: ${{ steps.tags.outputs.major }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -96,25 +100,31 @@ jobs:
         id: tags
         run: |
           patch=${GITHUB_REF#refs/tags/}
-          echo "patch=${patch}" >> $GITHUB_ENV
-          echo "minor=${patch%.*}" >> $GITHUB_ENV
-          echo "major=${patch%.*.*}" >> $GITHUB_ENV
+          echo "::set-output name=patch::${patch}"
+          echo "::set-output name=minor::${patch%.*}"
+          echo "::set-output name=major::${patch%.*.*}"
 
       - name: Build and Push release
         if: github.event.release.prerelease == 'false'
         run: |
-          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository_owner }}/server:${{ env.major }} -t ghcr.io/${{ github.repository_owner }}/server:${{ env.minor }} -t ghcr.io/${{ github.repository_owner }}/server:${{ env.patch }} -t ghcr.io/${{ github.repository_owner }}/server:stable -t ghcr.io/${{ github.repository_owner }}/server:latest --push .
+          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.major }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.minor }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }} -t ghcr.io/${{ github.repository_owner }}/server:stable -t ghcr.io/${{ github.repository_owner }}/server:latest --push .
+
+  release-notes-update:
+    name: Updates the release notes and changelog
+    needs: [build-and-publish-pypi, build-and-push-container-image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update changelog and release notes including frontend notes
+        uses: xdumaster1/release-notes-merge-action@main
+        with:
+          github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+          release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
+          pre_release: ${{ github.event.release.prerelease }}
 
   addon-version-update:
-    name: Update Addon repository with new version
-    needs:
-      - build-and-publish-pypi
-      - build-and-push-container-image
+    name: Updates the Addon repository with the new version
+    needs: [build-and-publish-pypi, build-and-push-container-image, release-notes-update]
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      actions: write
     steps:
       - name: Checkout addon repository
         uses: actions/checkout@v3
