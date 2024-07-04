@@ -8,43 +8,48 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  build-and-publish:
-    name: Build and publish release
+  build-and-publish-pypi:
+    name: Build and publish release to PyPI
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get-tag.outputs.tag }}
-
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Get tag name
+      # Step 2: Get tag name
+      - name: Get tag
         id: get-tag
         run: echo "::set-output name=tag::${GITHUB_REF#refs/tags/}"
 
-      - name: Validate version
+      # Step 3: Validate version number
+      - name: Validate version number
         run: |
           if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             if ! [[ "${{ steps.get-tag.outputs.tag }}" =~ "b" ]]; then
-              echo "Pre-release: Tag is missing beta suffix (${steps.get-tag.outputs.tag})"
+              echo "Pre-release: Tag is missing beta suffix (${{ steps.get-tag.outputs.tag }})"
               exit 1
             fi
           else
             if [[ "${{ steps.get-tag.outputs.tag }}" =~ "b" ]]; then
-              echo "Release: Tag must not have a beta suffix (${steps.get-tag.outputs.tag})"
+              echo "Release: Tag must not have a beta suffix (${{ steps.get-tag.outputs.tag }})"
               exit 1
             fi
           fi
 
-      - name: Setup Python ${{ env.PYTHON_VERSION }}
+      # Step 4: Setup Python environment
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v2
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # Step 5: Install build tools
       - name: Install build tools
         run: pip install build tomli tomli_w
 
-      - name: Set project version from tag
+      # Step 6: Set Python project version from tag
+      - name: Set Python project version from tag
         run: |
           python3 -m pip install tomli tomli_w
           python3 -c '
@@ -55,106 +60,111 @@ jobs:
           with open("pyproject.toml", "wb") as f:
               tomli_w.dump(pyproject, f)'
 
-      - name: Build Python package
+      # Step 7: Build Python package
+      - name: Build python package
         run: python3 -m build
 
-      - name: Publish to PyPI
+      # Step 8: Publish release to PyPI
+      - name: Publish release to PyPI
         uses: pypa/gh-action-pypi-publish@v1.9.0
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
 
+      # Step 9: Wait for PyPI (optional, if needed)
       - name: Wait for PyPI
         run: sleep 300
 
-  build-and-push-container:
-    name: Build and push container image
+  build-and-push-container-image:
+    name: Build and push Music Assistant Server container to ghcr.io
     runs-on: ubuntu-latest
-    needs: build-and-publish
+    permissions:
+      packages: write
+    needs: build-and-publish-pypi
+    outputs:
+      patch: ${{ steps.tags.outputs.patch }}
+      minor: ${{ steps.tags.outputs.minor }}
+      major: ${{ steps.tags.outputs.major }}
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Download Widevine CDM files
-        shell: bash
-        env:
-          TOKEN: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
+      # Step 2: Download Widevine CDM client files from private repository
+      - name: Download Widevine CDM client files
         run: |
           mkdir -p widevine_cdm && cd widevine_cdm
-          curl -OJ -H "Authorization: token ${TOKEN}" https://raw.githubusercontent.com/music-assistant/appvars/main/widevine_cdm_client/private_key.pem
-          curl -OJ -H "Authorization: token ${TOKEN}" https://raw.githubusercontent.com/music-assistant/appvars/main/widevine_cdm_client/client_id.bin
+          curl -OJ -H "Authorization: token ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}" https://raw.githubusercontent.com/music-assistant/appvars/main/widevine_cdm_client/private_key.pem
+          curl -OJ -H "Authorization: token ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}" https://raw.githubusercontent.com/music-assistant/appvars/main/widevine_cdm_client/client_id.bin
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3.2.0
+      # Step 3: Log in to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3.3.0
+      # Step 4: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Version tags
+      # Step 5: Determine version numbers for tags
+      - name: Version number for tags
         id: tags
         run: |
-          echo "patch=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-          echo "minor=${GITHUB_REF#refs/tags/*/}" >> $GITHUB_ENV
-          echo "major=${GITHUB_REF#refs/tags/*/*/}" >> $GITHUB_ENV
+          patch=${GITHUB_REF#refs/tags/}
+          echo "::set-output name=patch::${patch}"
+          echo "::set-output name=minor::${patch%.*}"
+          echo "::set-output name=major::${patch%.*.*}"
 
-      - name: Build and Push image
-        if: github.event.release.prerelease == false
-        uses: docker/build-push-action@v6.3.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          file: Dockerfile
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }},
-            ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.minor }},
-            ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.major }},
-            ghcr.io/${{ github.repository_owner }}/server:stable,
-            ghcr.io/${{ github.repository_owner }}/server:latest
-          push: true
-          build-args: "MASS_VERSION=${{ needs.build-and-publish.outputs.version }}"
+      # Step 6: Build and Push release (only for prereleases)
+      - name: Build and Push release
+        if: github.event.release.prerelease == 'true'
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.major }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.minor }} -t ghcr.io/${{ github.repository_owner }}/server:${{ steps.tags.outputs.patch }} -t ghcr.io/${{ github.repository_owner }}/server:stable -t ghcr.io/${{ github.repository_owner }}/server:latest --push .
 
-  update-release-notes:
-    name: Update release notes and changelog
+  release-notes-update:
+    name: Updates the release notes and changelog
+    needs: [build-and-publish-pypi, build-and-push-container-image]
     runs-on: ubuntu-latest
-    needs: [build-and-publish, build-and-push-container]
     steps:
-      - name: Update changelog and release notes
+      # Step 1: Update changelog and release notes
+      - name: Update changelog and release notes including frontend notes
         uses: xdumaster1/release-notes-merge-action@main
         with:
           github_token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
-          release_tag: ${{ needs.build-and-publish.outputs.version }}
+          release_tag: ${{ needs.build-and-publish-pypi.outputs.version }}
           pre_release: ${{ github.event.release.prerelease }}
 
-  update-addon-version:
-    name: Update Addon repository version
+  addon-version-update:
+    name: Updates the Addon repository with the new version
+    needs: [build-and-publish-pypi, build-and-push-container-image, release-notes-update]
     runs-on: ubuntu-latest
-    needs: [build-and-publish, build-and-push-container, update-release-notes]
     steps:
-      - name: Checkout Addon repository
+      # Step 1: Checkout addon repository
+      - name: Checkout addon repository
         uses: actions/checkout@v3
         with:
           repository: xdumaster1/home-assistant-addon
           token: ${{ secrets.PRIVILEGED_GITHUB_TOKEN }}
 
-      - name: Update version in addon config
+      # Step 2: Push new version number to addon config
+      - name: Push new version number to addon config
         run: |
           addon_version="music_assistant"
           if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             addon_version="music_assistant_beta"
           fi
 
-          echo "Updating addon version to ${{ needs.build-and-publish.outputs.version }}"
+          echo "Updating addon version to ${{ needs.build-and-publish-pypi.outputs.version }}"
 
-          # Update config.yaml or relevant addon files
-          echo "version: ${{ needs.build-and-publish.outputs.version }}" > "${addon_version}/config.yaml"
+          # Update config.yaml or any relevant files in the addon repository
+          echo "version: ${{ needs.build-and-publish-pypi.outputs.version }}" > "${addon_version}/config.yaml"
 
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
           git add .
-          git commit -m "Update addon version to ${{ needs.build-and-publish.outputs.version }}"
+          git commit -m "Update addon version to ${{ needs.build-and-publish-pypi.outputs.version }}"
           git push origin HEAD:${{ github.ref }}
