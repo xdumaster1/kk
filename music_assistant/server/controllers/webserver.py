@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from music_assistant.common.models.config_entries import ConfigValueType, CoreConfig
     from music_assistant.common.models.event import MassEvent
 
-DEFAULT_SERVER_PORT = 8096
+DEFAULT_SERVER_PORT = 8095
 CONF_BASE_URL = "base_url"
 CONF_EXPOSE_SERVER = "expose_server"
 MAX_PENDING_MSG = 512
