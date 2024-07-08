@@ -1,5 +1,5 @@
 [project]
-name = "musicxxdu"
+name = "xdu"
 # The version is set by GH action on release
 authors = [
   {name = "The Music Assistant Authors", email = "marcelveldt@users.noreply.github.com"},
